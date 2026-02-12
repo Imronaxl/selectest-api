@@ -25,9 +25,7 @@ from pathlib import Path
 
 import requests
 
-# ----------------------------------------------------------------------
 #  Конфигурация
-# ----------------------------------------------------------------------
 PROJECT_DIR = Path.cwd() / "selectest-api"
 DOCKER_COMPOSE_FILE = PROJECT_DIR / "docker-compose.yml"
 ENV_FILE = PROJECT_DIR / ".env"
@@ -36,9 +34,6 @@ API_PREFIX = "/api/v1"
 
 HEADERS = {"Content-Type": "application/json"}
 
-# ----------------------------------------------------------------------
-#  Вспомогательные функции
-# ----------------------------------------------------------------------
 def run_cmd(cmd, cwd=None, capture=False):
     """Выполняет команду, логирует результат."""
     print(f"🔧 Выполняется: {' '.join(cmd)}")
@@ -76,7 +71,7 @@ def wait_for_api(url, timeout=60):
 def test_endpoint(method, endpoint, expected_status=None, json_data=None, desc=""):
     """Универсальная функция тестирования эндпоинта."""
     url = f"{BASE_URL}{API_PREFIX}{endpoint}"
-    print(f"🧪 Тест: {desc}")
+    print(f"Тест: {desc}")
     print(f"   {method} {url}")
     try:
         if method == "GET":
@@ -151,35 +146,28 @@ def get_docker_logs(container="selectest-api-app-1", lines=20):
     except:
         return ""
 
-# ----------------------------------------------------------------------
-#  Основной тестовый сценарий
-# ----------------------------------------------------------------------
 def run_tests():
     print("=" * 80)
-    print("🧪 ЗАПУСК ФУНКЦИОНАЛЬНОГО ТЕСТИРОВАНИЯ")
+    print("ЗАПУСК ФУНКЦИОНАЛЬНОГО ТЕСТИРОВАНИЯ")
     print("=" * 80)
 
     results = []
     created_ids = []
     external_id_counter = 1000
 
-    # 1. Запуск Docker Compose
     print("\n🚀 Запуск контейнеров...")
     run_cmd(["docker", "compose", "up", "--build", "-d"], cwd=PROJECT_DIR)
     if not wait_for_api(BASE_URL):
         print("❌ Не удалось дождаться старта приложения. Тестирование прервано.")
         return results
 
-    # 2. Тест парсера (ручной запуск)
-    print("\n📥 Ручной запуск парсинга...")
+    print("\nРучной запуск парсинга...")
     res = test_endpoint("POST", "/parse/", expected_status=200, desc="Ручной запуск парсинга")
     results.append(res)
-    time.sleep(2)  # даём время на обработку
+    time.sleep(2)  
 
-    # 3. CRUD тесты
-    print("\n📝 Тестирование CRUD операций...")
+    print("\n Тестирование CRUD операций...")
 
-    # Создание вакансии
     vacancy1 = {
         "title": "Python Developer",
         "timetable_mode_name": "Full-time",
@@ -200,22 +188,18 @@ def run_tests():
             pass
     external_id_counter += 1
 
-    # Попытка создания дубликата (external_id уже существует) – ожидаем 409
     vacancy_dup = vacancy1.copy()
     vacancy_dup["title"] = "Duplicate Test"
     res = test_endpoint("POST", "/vacancies/", expected_status=409, json_data=vacancy_dup, desc="Создание дубликата (409 Conflict)")
     results.append(res)
 
-    # Получение списка вакансий
     res = test_endpoint("GET", "/vacancies/", expected_status=200, desc="Получение списка вакансий")
     results.append(res)
 
-    # Получение конкретной вакансии
     if created_ids:
         res = test_endpoint("GET", f"/vacancies/{created_ids[0]}", expected_status=200, desc="Получение вакансии по ID")
         results.append(res)
 
-    # Обновление вакансии
     if created_ids:
         update_data = {
             "title": "Senior Python Developer",
@@ -231,8 +215,6 @@ def run_tests():
         results.append(res)
         external_id_counter += 1
 
-    # Попытка обновления с уже занятым external_id – ожидаем 409
-    # Сначала создадим вторую вакансию с новым external_id
     vacancy2 = {
         "title": "Go Developer",
         "timetable_mode_name": "Full-time",
@@ -255,30 +237,23 @@ def run_tests():
     external_id_counter += 1
 
     if created_ids and second_id:
-        # Пытаемся обновить первую вакансию, присваивая external_id второй
         conflict_update = update_data.copy()
         conflict_update["external_id"] = vacancy2["external_id"]
         res = test_endpoint("PUT", f"/vacancies/{created_ids[0]}", expected_status=409, json_data=conflict_update, desc="Обновление с конфликтом external_id (409)")
         results.append(res)
 
-    # Удаление вакансии
     if second_id:
         res = test_endpoint("DELETE", f"/vacancies/{second_id}", expected_status=204, desc="Удаление вакансии")
         results.append(res)
 
-    # 4. Тест планировщика
-    print("\n⏰ Тестирование планировщика (интервал 1 минута)...")
-    # Изменяем интервал в .env на 1 минуту
+    print("\nТестирование планировщика (интервал 1 минута)...")
     set_env_variable("PARSE_SCHEDULE_MINUTES", "1")
-    # Перезапускаем контейнер app, чтобы применить новую переменную
     run_cmd(["docker", "compose", "restart", "app"], cwd=PROJECT_DIR)
-    time.sleep(10)  # даём время на перезапуск
+    time.sleep(10)  
 
-    # Ждём 70 секунд, за это время планировщик должен запуститься минимум 2 раза
     print("   Ожидание 70 секунд...")
     time.sleep(70)
 
-    # Получаем логи контейнера app
     logs = get_docker_logs("selectest-api-app-1", lines=100)
     parse_count = logs.count("Старт парсинга вакансий")
     scheduler_ok = parse_count >= 2
@@ -300,7 +275,7 @@ def generate_report(results):
     """Формирует текстовый отчёт."""
     report_lines = []
     report_lines.append("=" * 80)
-    report_lines.append("📋 ОТЧЁТ ПО ФУНКЦИОНАЛЬНОМУ ТЕСТИРОВАНИЮ")
+    report_lines.append("ОТЧЁТ ПО ФУНКЦИОНАЛЬНОМУ ТЕСТИРОВАНИЮ")
     report_lines.append(f"Дата: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append("=" * 80)
     report_lines.append("")
@@ -326,7 +301,7 @@ def generate_report(results):
         report_lines.append("")
 
     report_lines.append("=" * 80)
-    report_lines.append("🎯 ВСЕ ИСПРАВЛЕННЫЕ БАГИ ПРОВЕРЕНЫ И РАБОТАЮТ КОРРЕКТНО.")
+    report_lines.append(" ВСЕ ИСПРАВЛЕННЫЕ БАГИ ПРОВЕРЕНЫ И РАБОТАЮТ КОРРЕКТНО.")
     report_lines.append("=" * 80)
     return "\n".join(report_lines)
 
@@ -337,9 +312,8 @@ def main():
         print("   Сначала запустите create_project.py")
         sys.exit(1)
 
-    # Проверка наличия .env
     if not ENV_FILE.exists():
-        print("⚠️  Файл .env не найден. Создаю из .env.example...")
+        print("Файл .env не найден. Создаю из .env.example...")
         example = PROJECT_DIR / ".env.example"
         if example.exists():
             with open(example, "r") as src, open(ENV_FILE, "w") as dst:
@@ -348,7 +322,6 @@ def main():
             print("❌ .env.example тоже отсутствует. Создайте .env вручную.")
             sys.exit(1)
 
-    # Проверка наличия Docker и docker compose
     try:
         run_cmd(["docker", "--version"], capture=True)
         run_cmd(["docker", "compose", "version"], capture=True)
@@ -356,27 +329,25 @@ def main():
         print("❌ Docker или Docker Compose не установлены или не доступны.")
         sys.exit(1)
 
-    # Установка зависимостей для тестов (requests)
     try:
         import requests
     except ImportError:
-        print("📦 Устанавливаю requests...")
+        print(" Устанавливаю requests...")
         run_cmd([sys.executable, "-m", "pip", "install", "requests"])
 
-    print("\n🚀 Начинаем тестирование...")
+    print("\n Начинаем тестирование...")
     results = run_tests()
 
-    print("\n🧹 Останавливаем и удаляем контейнеры...")
+    print("\nОстанавливаем и удаляем контейнеры...")
     run_cmd(["docker", "compose", "down", "-v"], cwd=PROJECT_DIR)
 
     report = generate_report(results)
     print("\n" + report)
 
-    # Сохраняем отчёт в файл
     report_path = Path.cwd() / "test_report.txt"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
-    print(f"\n📄 Отчёт сохранён в {report_path}")
+    print(f"\n Отчёт сохранён в {report_path}")
 
 
 if __name__ == "__main__":
